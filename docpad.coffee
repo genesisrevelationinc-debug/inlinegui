@@ -151,4 +151,34 @@ docpadConfig = {
 }
 
 # Export our DocPad Configuration
+docpadConfig = {
+    # Template Data
+    templateData:
+        site:
+            title: "Docport InlineGUI"
+            url: "http://docport.io"
+            author: "Neil Taylor, Benjamin Lupton"
+
+    # Collections
+    collections:
+        pages: ->
+            @getCollection('html').findAllLive({layout: $exists: true})
+
+    # Events
+    events:
+        serverExtend: (opts) ->
+            {server} = opts
+            docpad = @docpad
+
+            # Create new page route
+            server.get '/create-page', (req, res) ->
+                layouts = docpad.getCollection('layouts').toJSON()
+                if layouts.length > 1
+                    res.send '<form action="/create-page" method="post"><select name="layout"><option value="">Select Layout</option>' + layouts.map((layout) -> "<option value=\"#{layout.name}\">#{layout.name}</option>").join('') + '</select><input type="text" name="title" placeholder="Page Title"><button type="submit">Create Page</button></form>'
+                else
+                    res.send 'Only one layout available, cannot select layout.'
+            return
+}
+
+module.exports = docpadConfig
 module.exports = docpadConfig
