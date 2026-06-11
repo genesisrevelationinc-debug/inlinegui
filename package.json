@@ -13,11 +13,19 @@
     "npm": false,
     "gittip": "bevry",
     "flattr": "344188/balupton-on-Flattr",
-    "paypal": "QB8GQPZAH84N6"
+  "bugs": {
+    "url": "https://github.com/Docport/inlinegui/issues"
   },
-  "keywords": [
-    "docpad-plugin",
-    "docpad",
+  "homepage": "https://github.com/Docport/inlinegui",
+  "dependencies": {
+    "express": "^4.0.0",
+    "body-parser": "^1.0.0",
+    "levelup": "^0.18.0",
+    "leveldown": "^0.10.0",
+    "express-session": "^1.0.0",
+    "cookie-parser": "^1.0.0"
+  }
+}
     "gui",
     "cms",
     "inline",
@@ -77,4 +85,15 @@
   "scripts": {
     "start": "node ./node_modules/docpad/bin/docpad run --port 9779"
   }
+{
+  "name": "inlinegui",
+  "version": "0.1.0",
+  "description": "Inline GUI for WebWrite",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
 }
