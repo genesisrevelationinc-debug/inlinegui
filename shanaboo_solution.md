@@ -1,215 +1,204 @@
  ```diff
 --- a/package.json
 +++ b/package.json
-@@ -0,0 +1,45 @@
-+{
-+  "name": "inlinegui",
-+  "version": "0.1.0",
-+  "description": "An Inline GUI/CMS for any backend",
-+  "main": "docpad.coffee",
-+  "scripts": {
-+    "start": "docpad run"
-+  },
-+  "dependencies": {
-+    "docpad": "~6.69.0",
+@@ -0,0 +0,0 @@
+ {
+   "name": "inlinegui",
+   "version": "0.1.0",
+   "description": "An Inline GUI/CMS for any backend",
+   "main": "docpad.coffee",
+   "dependencies": {
 +    "express": "~3.4.0",
 +    "levelup": "~0.18.0",
 +    "leveldown": "~0.10.0",
-+    "body-parser": "~1.0.0",
-+    "cookie-parser": "~1.0.0",
-+    "express-session": "~1.0.0"
-+  },
-+  "devDependencies": {},
-+  "repository": {
-+    "type": "git",
-+    "url": "https://github.com/Docport/inlinegui.git"
-+  },
-+  "keywords": [
-+    "docpad",
-+    "inlinegui",
-+    "cms",
-+    "webwrite"
-+  ],
-+  "author": "Docport",
-+  "license": "MIT",
-+  "bugs": {
-+    "url": "https://github.com/Docport/inlinegui/issues"
-+  },
-+  "homepage": "https://github.com/Docport/inlinegui"
-+}
---- a/docpad.coffee
-+++ b/docpad.coffee
-@@ -0,0 +1,120 @@
-+# Docpad Configuration File
-+# http://docpad.org/docs/config
-+
-+# Import
-+pathUtil = require('path')
-+
-+# =================================
-+# DocPad Configuration
-+
-+docpadConfig = {
-+
-+	# =================================
-+	# Template Data
-+	# These are variables that will be accessible via our templates
-+	# To access one of these within our templates, refer to the FAQ: https://github.com/bevry/docpad/wiki/FAQ
-+
-+	templateData:
-+
-+		# Specify some site properties
-+		site:
-+			# The production url of our website
-+			url: "http://localhost:9778"
-+
-+			# Here are some old site urls that you would like to redirect from
-+			oldUrls: []
-+
-+			# The default title of our website
-+			title: "InlineGUI"
-+
-+			# The website description (for SEO)
-+			description: """
-+				An Inline GUI/CMS for any backend!
-+				"""
-+
-+			# The website keywords (for SEO) separated by commas
-+			keywords: """
-+				docpad, inlinegui, cms, webwrite
-+				"""
-+
-+			# The website author's name
-+			author: "Docport"
-+
-+			# The website author's email
-+			email: "hello@docport.io"
-+
-+			# Styles
-+			styles: [
-+				"/styles/style.css"
-+			]
-+
-+			# Scripts
-+			scripts: [
-+				"/scripts/script.js"
-+			]
-+
-+
-+	# =================================
-+	# Collections
-+
-+	collections:
-+
-+	# =================================
-+	# Plugins
-+
-+	plugins:
-+
-+	# =================================
-+	# DocPad Events
-+
-+	events:
-+
-+		# Server Extend
-+		# Used to add our own server configuration to DocPad's server
-+		serverExtend: (opts) ->
-+			# Extract the server from the options
-+			{server} = opts
-+			{express} = opts.docpad
-+
-+			# Require our account routes
-+			accountRoutes = require('./src/lib/account-routes')
-+
-+			# Configure body parser
-+			server.use(express.bodyParser())
-+			server.use(express.cookieParser())
-+			server.use(express.session({secret: 'inlinegui-secret-key'}))
-+
-+			# Add our account routes
-+			accountRoutes(server)
-+
-+			# Return
-+			@
-+
-+}
-+
-+# Export our DocPad Configuration
-+module.exports = docpadConfig
++    "body-parser": "~1.0.0"
+   },
+   "devDependencies": {},
+   "scripts": {
+     "test": "echo \"Error: no test specified\" && exit 1"
+   },
+   "repository": {
+     "type": "git",
+     "url": "https://github.com/Docport/inlinegui.git"
+   },
+   "keywords": [
+     "inlinegui",
+     "cms",
+     "docpad",
+     "webwrite"
+   ],
+   "author": "Docport",
+   "license": "MIT",
+   "bugs": {
+     "url": "https://github.com/Docport/inlinegui/issues"
+   },
+   "homepage": "https://github.com/Docport/inlinegui"
+ }
 --- /dev/null
-+++ b/src/lib/account-routes.coffee
-@@ -0,0 +1,95 @@
-+# Account Routes
-+# Handles saving/creating user accounts with Mozilla Persona
-+
-+# Import required modules
++++ b/src/server.coffee
+@@ -0,0 +1,88 @@
++# Server for handling user accounts and Persona authentication
++express = require('express')
 +path = require('path')
-+fs = require('fs')
++levelup = require('levelup')
 +
-+# Database setup
-+dbPath = path.join(process.cwd(), 'data', 'accounts')
-+db = null
++# Initialize LevelUP database
++db = levelup('./userdb')
 +
-+# Initialize database
-+initDatabase = ->
-+	try
-+		# Try to use LevelUP/LevelDOWN
-+		levelup = require('levelup')
-+		db = levelup(dbPath)
-+		console.log 'Account database initialized at:', dbPath
-+	catch err
-+		console.error 'Failed to initialize LevelUP database:', err
-+		console.error 'Falling back to in-memory storage'
-+		# Fallback to simple in-memory storage
-+		memoryStore = {}
-+		db =
-+			get: (key, callback) ->
-+				if memoryStore[key]
-+					callback(null, memoryStore[key])
-+				else
-+					callback(new Error('Key not found'))
-+			put: (key, value, callback) ->
-+				memoryStore[key] = value
-+				callback(null) if callback
-+			close: (callback) ->
-+				callback() if callback
++# Create Express app
++app = express()
 +
-+# Initialize database on module load
-+initDatabase()
++# Middleware
++app.use(express.bodyParser())
++app.use(express.cookieParser())
++app.use(express.session(secret: 'inlinegui-secret-key'))
 +
-+# Account routes
-+module.exports = (server) ->
++# Serve static files
++app.use(express.static(path.join(__dirname, '..', 'out')))
 +
-+	# Mozilla Persona authentication endpoint
-+	server.post '/auth/persona', (req, res) ->
-+		assertion = req.body?.assertion
++# Persona verification endpoint
++app.post '/auth/persona', (req, res) ->
++  assertion = req.body.assertion
++  
++  unless assertion
++    return res.json(400, { status: 'failure', reason: 'No assertion provided' })
++  
++  # Verify assertion with Mozilla's Persona verifier
++  https = require('https')
++  querystring = require('querystring')
++  
++  data = querystring.stringify
++    assertion: assertion
++    audience: req.headers.host
++  
++  options =
++    hostname: 'verifier.login.persona.org'
++    path: '/verify'
++    method: 'POST'
++    headers:
++      'Content-Type': 'application/x-www-form-urlencoded'
++  
++  verifyReq = https.request options, (verifyRes) ->
++    body = ''
++    verifyRes.on 'data', (chunk) -> body += chunk
++    verifyRes.on 'end', ->
++      try
++        verified = JSON.parse(body)
++        
++        if verified.status is 'okay'
++          # Store or update user in database
++          email = verified.email
++          userKey = "user:#{email}"
++          
++          db.get userKey, (err, userData) ->
++            user = if err then {} else JSON.parse(userData)
++            user.email = email
++            user.lastLogin = new Date().toISOString()
++            
++            # Save user to database
++            db.put userKey, JSON.stringify(user), (err) ->
++              if err
++                return res.json(500, { status: 'failure', reason: 'Database error' })
++              
++              req.session.email = email
++              res.json
++                status: 'success'
++                email: email
++                name: user.name or null
++        else
++          res.json(401, { status: 'failure', reason: verified.reason })
++      catch e
++        res.json(500, { status: 'failure', reason: 'Invalid response from verifier' })
++  
++  verifyReq.on 'error', (err) ->
++    res.json(500, { status: 'failure', reason: 'Verification request failed' })
++  
++  verifyReq.write(data)
++  verifyReq.end()
 +
-+		if !assertion
-+			return res.send(400, {error: 'Assertion required'})
++# Logout endpoint
++app.post '/auth/logout', (req, res) ->
++  req.session.destroy()
++  res.json({ status: 'success' })
 +
-+		# Verify the assertion with Mozilla's verifier
-+		https = require('https')
-+		querystring = require('querystring')
-+
-+		verificationData = querystring.stringify(
-+			assertion: assertion
-+			audience: req.headers.host or 'localhost:9778'
-+		)
-+
-+		verificationOptions =
-+			host: 'verifier.login.persona.org'
-+			path: '/verify'
-+			method: 'POST'
-+			headers:
-+				'Content-Type': 'application/x-www-form-urlencoded'
-+				'Content-Length': verificationData.length
-+
-+		verificationReq = https.request verificationOptions, (verificationRes) ->
-+			data = ''
-+			verificationRes.on 'data', (chunk) -> data += chunk
-+			verificationRes.on 'end', ->
-+				try
-+					response = JSON.parse(data)
-+
-+					if response.status is 'okay'
-+
++module.exports = app
+--- /dev/null
++++ b/src/files/login.html
+@@ -0,0 +1,120 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++  <meta charset="UTF-8">
++  <title>Login - InlineGUI</title>
++  <style>
++    * {
++      margin: 0;
++      padding: 0;
++      box-sizing: border-box;
++    }
++    
++    body {
++      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
++      background: #f5f5f5;
++      display: flex;
++      justify-content: center;
++      align-items: center;
++      min-height: 100vh;
++    }
++    
++    .login-container {
++      background: #fff;
++      border-radius: 4px;
++      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
++      width: 400px;
++      padding: 40px;
++    }
++    
++    .login-header {
++      text-align: center;
++      margin-bottom: 30px;
++    }
++    
++    .login-header h1 {
++      font-size: 24px;
++      font-weight: 600;
++      color: #32325d;
++      margin-bottom: 8px;
++    }
++    
++    .login-header p {
++      color: #6b7c93;
++      font-size: 14px;
++    }
++    
++    .form-group {
++      margin-bottom: 20px;
++    }
++    
++    .form-group label {
++      display: block;
++      font-size: 13px;
++      font-weight: 600;
++      color: #32325d;
++      margin-bottom: 6px;
++      text-transform: uppercase;
++    }
++    
++    .form-group input {
++      width: 100%;
++      padding: 12px;
++      border: 1px solid #e0e0e0;
++      border-radius: 4px;
++      font-size: 15px;
++      transition: border-color 0.2s;
++    }
++    
++    .form-group input:focus {
++      outline: none;
++      border-color: #6772e5;
++    }
++    
++    .persona-button {
++      width: 100%;
++      padding: 12px;
++      background
