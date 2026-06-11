@@ -8,9 +8,18 @@
 +  "description": "An Inline GUI/CMS for any backend",
 +  "main": "docpad.coffee",
 +  "scripts": {
-+    "start": "docpad run",
-+    "test": "echo \"Error: no test specified\" && exit 1"
++    "start": "docpad run"
 +  },
++  "dependencies": {
++    "docpad": "~6.69.0",
++    "express": "~3.4.0",
++    "levelup": "~0.18.0",
++    "leveldown": "~0.10.0",
++    "body-parser": "~1.0.0",
++    "cookie-parser": "~1.0.0",
++    "express-session": "~1.0.0"
++  },
++  "devDependencies": {},
 +  "repository": {
 +    "type": "git",
 +    "url": "https://github.com/Docport/inlinegui.git"
@@ -26,25 +35,20 @@
 +  "bugs": {
 +    "url": "https://github.com/Docport/inlinegui/issues"
 +  },
-+  "homepage": "https://github.com/Docport/inlinegui",
-+  "dependencies": {
-+    "docpad": "~6.69.0",
-+    "express": "~4.0.0",
-+    "body-parser": "~1.0.0",
-+    "cookie-parser": "~1.0.0",
-+    "express-session": "~1.0.0",
-+    "levelup": "~0.18.0",
-+    "leveldown": "~0.10.0",
-+    "level-session-store": "~1.0.0"
-+  },
-+  "devDependencies": {
-+    "coffee-script": "~1.7.0"
-+  }
++  "homepage": "https://github.com/Docport/inlinegui"
 +}
 --- a/docpad.coffee
 +++ b/docpad.coffee
 @@ -0,0 +1,120 @@
-+# Docpad Configuration
++# Docpad Configuration File
++# http://docpad.org/docs/config
++
++# Import
++pathUtil = require('path')
++
++# =================================
++# DocPad Configuration
++
 +docpadConfig = {
 +
 +	# =================================
@@ -53,11 +57,13 @@
 +	# To access one of these within our templates, refer to the FAQ: https://github.com/bevry/docpad/wiki/FAQ
 +
 +	templateData:
++
++		# Specify some site properties
 +		site:
 +			# The production url of our website
 +			url: "http://localhost:9778"
 +
-+			# Here are some old site urls that you would not like to be indexed
++			# Here are some old site urls that you would like to redirect from
 +			oldUrls: []
 +
 +			# The default title of our website
@@ -73,12 +79,32 @@
 +				docpad, inlinegui, cms, webwrite
 +				"""
 +
-+			# The website's styles
-+			styles: []
++			# The website author's name
++			author: "Docport"
 +
-+			# The website's scripts
-+			scripts: []
++			# The website author's email
++			email: "hello@docport.io"
 +
++			# Styles
++			styles: [
++				"/styles/style.css"
++			]
++
++			# Scripts
++			scripts: [
++				"/scripts/script.js"
++			]
++
++
++	# =================================
++	# Collections
++
++	collections:
++
++	# =================================
++	# Plugins
++
++	plugins:
 +
 +	# =================================
 +	# DocPad Events
@@ -86,93 +112,104 @@
 +	events:
 +
 +		# Server Extend
-+		# Used to add our own server-side routes to DocPad's server
++		# Used to add our own server configuration to DocPad's server
 +		serverExtend: (opts) ->
 +			# Extract the server from the options
 +			{server} = opts
-+			docpad = @docpad
++			{express} = opts.docpad
 +
-+			# Require our modules
-+			express = require('express')
-+			bodyParser = require('body-parser')
-+			cookieParser = require('cookie-parser')
-+			session = require('express-session')
-+			LevelUp = require('levelup')
-+			LevelSessionStore = require('level-session-store')
++			# Require our account routes
++			accountRoutes = require('./src/lib/account-routes')
 +
-+			# Initialize LevelUP database
-+			db = LevelUp('./data/users', {valueEncoding: 'json'})
++			# Configure body parser
++			server.use(express.bodyParser())
++			server.use(express.cookieParser())
++			server.use(express.session({secret: 'inlinegui-secret-key'}))
 +
-+			# Session store
-+			SessionStore = LevelSessionStore(session)
++			# Add our account routes
++			accountRoutes(server)
 +
-+			# Configure middleware
-+			server.use(bodyParser.json())
-+			server.use(bodyParser.urlencoded({extended: true}))
-+			server.use(cookieParser())
-+			server.use(session({
-+				secret: 'inlinegui-secret-key',
-+				resave: false,
-+				saveUninitialized: true,
-+				store: new SessionStore('./data/sessions')
-+			}))
++			# Return
++			@
 +
-+			# Authentication middleware
-+			server.use (req, res, next) ->
-+				req.isAuthenticated = -> req.session?.user?
-+				req.user = req.session?.user
-+				next()
++}
 +
-+			# Persona verification endpoint
-+			server.post '/auth/persona', (req, res) ->
-+				assertion = req.body?.assertion
++# Export our DocPad Configuration
++module.exports = docpadConfig
+--- /dev/null
++++ b/src/lib/account-routes.coffee
+@@ -0,0 +1,95 @@
++# Account Routes
++# Handles saving/creating user accounts with Mozilla Persona
 +
-+				# Verify the assertion with Mozilla Persona (simplified)
-+				# In production, this should verify with https://verifier.login.persona.org/verify
-+				if assertion
-+					# Mock verification - in production, verify with Persona service
-+					# For now, we accept the email from the client
-+					email = req.body?.email
-+					name = req.body?.name or email?.split('@')[0]
++# Import required modules
++path = require('path')
++fs = require('fs')
 +
-+					if email
-+						# Check if user exists, if not create
-+						db.get email, (err, user) ->
-+							if err and err.notFound
-+								# Create new user
-+								user = {
-+									email: email
-+									name: name
-+									createdAt: new Date().toISOString()
-+								}
-+								db.put email, user, (err) ->
-+									return res.status(500).json({error: 'Database error'}) if err
-+									req.session.user = user
-+									res.json({success: true, user: user})
-+							else if err
-+								return res.status(500).json({error: 'Database error'})
-+							else
-+								# User exists, update session
-+								req.session.user = user
-+								res.json({success: true, user: user})
-+					else
-+						res.status(400).json({error: 'Email required'})
++# Database setup
++dbPath = path.join(process.cwd(), 'data', 'accounts')
++db = null
++
++# Initialize database
++initDatabase = ->
++	try
++		# Try to use LevelUP/LevelDOWN
++		levelup = require('levelup')
++		db = levelup(dbPath)
++		console.log 'Account database initialized at:', dbPath
++	catch err
++		console.error 'Failed to initialize LevelUP database:', err
++		console.error 'Falling back to in-memory storage'
++		# Fallback to simple in-memory storage
++		memoryStore = {}
++		db =
++			get: (key, callback) ->
++				if memoryStore[key]
++					callback(null, memoryStore[key])
 +				else
-+					res.status(400).json({error: 'Assertion required'})
++					callback(new Error('Key not found'))
++			put: (key, value, callback) ->
++				memoryStore[key] = value
++				callback(null) if callback
++			close: (callback) ->
++				callback() if callback
 +
-+			# Logout endpoint
-+			server.post '/auth/logout', (req, res) ->
-+				req.session.destroy()
-+				res.json({success: true})
++# Initialize database on module load
++initDatabase()
 +
-+			# Get current user
-+			server.get '/auth/user', (req, res) ->
-+				if req.isAuthenticated()
-+					res.json({success: true, user: req.user})
-+				else
-+					res.status(401).json({success: false, error: 'Not authenticated'})
++# Account routes
++module.exports = (server) ->
 +
-+			# Update user info
-+			server.post '/auth/user', (req, res) ->
-+				return res.status(401).json({error: 'Not authenticated'}) unless req.isAuthenticated()
++	# Mozilla Persona authentication endpoint
++	server.post '/auth/persona', (req, res) ->
++		assertion = req.body?.assertion
++
++		if !assertion
++			return res.send(400, {error: 'Assertion required'})
++
++		# Verify the assertion with Mozilla's verifier
++		https = require('https')
++		querystring = require('querystring')
++
++		verificationData = querystring.stringify(
++			assertion: assertion
++			audience: req.headers.host or 'localhost:9778'
++		)
++
++		verificationOptions =
++			host: 'verifier.login.persona.org'
++			path: '/verify'
++			method: 'POST'
++			headers:
++				'Content-Type': 'application/x-www-form-urlencoded'
++				'Content-Length': verificationData.length
++
++		verificationReq = https.request verificationOptions, (verificationRes) ->
++			data = ''
++			verificationRes.on 'data', (chunk) -> data += chunk
++			verificationRes.on 'end', ->
++				try
++					response = JSON.parse(data)
++
++					if response.status is 'okay'
 +
